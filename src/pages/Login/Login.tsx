@@ -1,40 +1,68 @@
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { schema, Schema } from '@/utils/rules'
+import { yupResolver } from '@hookform/resolvers/yup'
+import Input from '@/components/Input'
+import { useMutation } from '@tanstack/react-query'
+import authApi from '@/apis/auth.api'
+import { isAxiosUnprocessableEntityError } from '@/utils/utils'
+import { ErrorResponse } from '@/types/utils.type'
 
+type FormData = Pick<Schema, 'email' | 'password'>
+const loginSchema = schema.omit(['confirm_password'])
 const Login = () => {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors }
-  } = useForm()
+  } = useForm<FormData>({
+    resolver: yupResolver(loginSchema)
+  })
+  const registerAccountMutation = useMutation({
+    mutationFn: (body: FormData) => authApi.login(body)
+  })
   const onSubmit = handleSubmit((data) => {
-    console.log(data)
+    registerAccountMutation.mutate(data, {
+      onSuccess: (response) => console.log(response.data),
+      onError: (error) => {
+        if (isAxiosUnprocessableEntityError<ErrorResponse<FormData>>(error)) {
+          const formError = error.response?.data.data
+          if (formError) {
+            Object.keys(formError).forEach((key) => {
+              setError(key as keyof FormData, {
+                message: formError[key as keyof FormData],
+                type: 'Server'
+              })
+            })
+          }
+        }
+      }
+    })
   })
   return (
     <div className='bg-orange'>
       <div className='container'>
         <div className='grid grid-cols-1 lg:grid-cols-5 py-12 lg:py-32 lg:pr-10'>
           <div className='lg:col-span-2 lg:col-start-4'>
-            <form className='p-10 rounded bg-white shadow-sm' onSubmit={onSubmit}>
+            <form className='p-10 rounded bg-white shadow-sm' noValidate onSubmit={onSubmit}>
               <div className='text-2xl'>Đăng Nhập</div>
-              <div className='mt-8'>
-                <input
-                  type='email'
-                  name='email'
-                  className='p-3 w-full outline-none border border-gray-300 focus:border-gray-500 focus:shadow-sm rounded-sm'
-                  placeholder='Email'
-                />
-                <div className='mt-1 text-red-600 min-h-[1rem] text-sm'></div>
-              </div>
-              <div className='mt-3'>
-                <input
-                  type='password'
-                  name='password'
-                  className='p-3 w-full outline-none border border-gray-300 focus:border-gray-500 focus:shadow-sm rounded-sm'
-                  placeholder='Mật khẩu'
-                />
-                <div className='mt-1 text-red-600 min-h-[1rem] text-sm'></div>
-              </div>
+              <Input
+                name='email'
+                register={register}
+                type='email'
+                errorMessage={errors.email?.message}
+                className='mt-8'
+                placeholder='Email'
+              />
+              <Input
+                name='password'
+                register={register}
+                type='password'
+                errorMessage={errors.password?.message}
+                className='mt-2'
+                placeholder='Password'
+              />
               <div className='mt-3'>
                 <button
                   type='submit'
